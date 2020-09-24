@@ -55,6 +55,17 @@ FLAT_TYPES = {
 }
 
 
+ERROR_MESSAGES = {
+    'flat__type-flat': 'Flat name',
+    'flat__cost-old': 'Price without discount',
+    'flat__cost-new': 'Price with discount',
+    'flat__info-item-value': 'Information about Area, Number, Building and Floor',
+    'flat__img-file': 'Plan image',
+    'flat__type-plan': 'Flat type',
+    'button button--green flat__els-btn': 'Button `Забронировать`',
+}
+
+
 
 def get_page():
     request = requests.get('https://akvilon-mitino.ru/flat/?group=yes')
@@ -107,28 +118,27 @@ def parse_flat(flat=None):
     soup = BeautifulSoup(html, 'html.parser')
 
     # TODO: Use structure from make_fetcher (create dict and place values directly to it)
-    flat_name = soup.find(class_='flat__type-flat').string
-    OUTPUT['price_finished'] = format_price(raw_price=soup.find(class_='flat__cost-old').string)
-    OUTPUT['price_finished_sale'] = format_price(
-        raw_price=soup.find(class_='flat__cost-new').string)
+    flat_name = find_tag_by_class(soup, 'flat__type-flat').string
+    OUTPUT['price_finished'] = format_price(raw_price=find_tag_by_class(soup, 'flat__cost-old').string)
+    OUTPUT['price_finished_sale'] = format_price(raw_price=find_tag_by_class(soup, 'flat__cost-new').string)
 
     # Values are Area, Number, Building and Floor respectively
-    flat_info = soup.find_all(class_='flat__info-item-value')
+    flat_info = find_tags_by_class(soup, 'flat__info-item-value')
     OUTPUT['area'] = float(flat_info[0].string.replace(' м²', ''))
     OUTPUT['number'] = flat_info[1].string
     OUTPUT['building'] = flat_info[2].string
     OUTPUT['floor'] = int(flat_info[3].string)
 
-    img_path = soup.find(class_='flat__img-file').attrs['src']
+    img_path = find_tag_by_class(soup, 'flat__img-file').attrs['src']
     OUTPUT['plan'] = f'{URL_ROOT}{img_path}'
 
-    flat_type = soup.find(class_='flat__type-plan').string
+    flat_type = find_tag_by_class(soup, 'flat__type-plan').string
     OUTPUT['rooms'] = FLAT_TYPES.get(flat_type)
 
     OUTPUT['euro_planning'] = int('евро' in flat_name)
 
     OUTPUT['in_sale'] = int(
-        soup.find(class_='button button--green flat__els-btn').string == 'Забронировать'
+        find_tag_by_class(soup, 'button button--green flat__els-btn').string == 'Забронировать'
     )
 
 
@@ -137,18 +147,23 @@ def format_price(raw_price):
 
     return float(formatted_price)
 
-# # TODO: add dict with error messages
-# def find_tag_by_class(soup, tag_class):
-#     tag = soup.find(class_=tag_class)
 
-#     if tag is None:
-#         raise ValueError(f'{ERRORS.get[tag_class]} is missing.')
+def find_tag_by_class(soup, tag_class):
+    tag = soup.find(class_=tag_class)
 
-#     return tag
+    if tag is None:
+        raise ValueError(f'Invalid data format. {ERROR_MESSAGES.get(tag_class)} is missing.')
+
+    return tag
 
 
-def find_tags():
-    pass
+def find_tags_by_class(soup, tag_class):
+    tags = soup.find_all(class_=tag_class)
+
+    if not tags:
+        raise ValueError(f'Invalid data format. {ERROR_MESSAGES.get(tag_class)} is missing.')
+
+    return tags
 
 
 def validate():
