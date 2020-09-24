@@ -10,40 +10,6 @@ URL_ROOT = 'https://akvilon-mitino.ru'
 # URL_ROOT = 'https://akvilon-mitino.ru/flat/'
 URL_FLAT_PLANS = 'https://akvilon-mitino.ru/flat/?group=yes'
 
-OUTPUT = {
-    'complex': 'Аквилон Митино (Москва)',
-    'type': 'flat',
-    'phase': '1' or None,
-    'building': '1' or '2' or '3',
-    'section': '0',
-    'price_base': '0',
-    'price_finished': '0',
-    'price_sale': '0',
-    'price_finished_sale': '0',
-    'area': '0',
-    'living_area': '0',
-    'number': '0',
-    'number_on_site': '0',
-    'rooms': '0',
-    'floor': '0',
-    'in_sale': '0',
-    'sale_status': '0',
-    'finished': 'optional',
-    'currency': '0',
-    'ceil': '0',
-    'article': '0',
-    'finishing_name': '0',
-    'furniture': '0',
-    'furniture_price': '0',
-    'plan': '0',
-    'feature': '0',
-    'view': '0',
-    'euro_planning': '0',
-    'sale': '0',
-    'discount_percent': '0',
-    'discount': '0',
-    'comment': '0',
-}
 
 FLAT_TYPES = {
     'Тип: XS': 'studio',
@@ -116,30 +82,46 @@ def parse_flat(flat=None):
         html = readable_file.read()
 
     soup = BeautifulSoup(html, 'html.parser')
-
-    # TODO: Use structure from make_fetcher (create dict and place values directly to it)
     flat_name = find_tag_by_class(soup, 'flat__type-flat').string
-    OUTPUT['price_finished'] = format_price(raw_price=find_tag_by_class(soup, 'flat__cost-old').string)
-    OUTPUT['price_finished_sale'] = format_price(raw_price=find_tag_by_class(soup, 'flat__cost-new').string)
-
+    img_path = find_tag_by_class(soup, 'flat__img-file').attrs['src']
+    flat_type = find_tag_by_class(soup, 'flat__type-plan').string
+    is_bookable = find_tag_by_class(soup, 'button button--green flat__els-btn').string == 'Забронировать'
     # Values are Area, Number, Building and Floor respectively
     flat_info = find_tags_by_class(soup, 'flat__info-item-value')
-    OUTPUT['area'] = float(flat_info[0].string.replace(' м²', ''))
-    OUTPUT['number'] = flat_info[1].string
-    OUTPUT['building'] = flat_info[2].string
-    OUTPUT['floor'] = int(flat_info[3].string)
 
-    img_path = find_tag_by_class(soup, 'flat__img-file').attrs['src']
-    OUTPUT['plan'] = f'{URL_ROOT}{img_path}'
-
-    flat_type = find_tag_by_class(soup, 'flat__type-plan').string
-    OUTPUT['rooms'] = FLAT_TYPES.get(flat_type)
-
-    OUTPUT['euro_planning'] = int('евро' in flat_name)
-
-    OUTPUT['in_sale'] = int(
-        find_tag_by_class(soup, 'button button--green flat__els-btn').string == 'Забронировать'
-    )
+    return {
+        'complex': 'Аквилон Митино (Москва)',
+        'type': 'flat',
+        'phase': None,
+        'building': flat_info[2].string,
+        'section': None,
+        'price_base': None,
+        'price_finished': format_price(raw_price=find_tag_by_class(soup, 'flat__cost-old').string),
+        'price_sale': None,
+        'price_finished_sale': format_price(raw_price=find_tag_by_class(soup, 'flat__cost-new').string),
+        'area': float(flat_info[0].string.replace(' м²', '')),
+        'living_area': None,
+        'number': flat_info[1].string,
+        'number_on_site': None,
+        'rooms': FLAT_TYPES.get(flat_type),
+        'floor': int(flat_info[3].string),
+        'in_sale': int(is_bookable),
+        'sale_status': None,
+        'finished': 'optional',
+        'currency': None,
+        'ceil': None,
+        'article': None,
+        'finishing_name': 'Предчистовая',  # ask
+        'furniture': None,
+        'furniture_price': None,
+        'plan': f'{URL_ROOT}{img_path}',
+        'feature': None,
+        'view': None,
+        'euro_planning': int('евро' in flat_name),
+        'sale': None,
+        'discount_percent': None,
+        'discount': None,
+    }
 
 
 def format_price(raw_price):
@@ -173,4 +155,4 @@ def validate():
 if __name__ == '__main__':
     parse_flat()
     import pprint
-    pprint.pprint(OUTPUT)
+    pprint.pprint(parse_flat())
