@@ -1,6 +1,8 @@
 """Parser for akvilon-mitino.ru."""
 
+import sys
 import re
+import json
 from typing import List, Dict, Any
 import requests
 from bs4 import BeautifulSoup
@@ -201,4 +203,4 @@ def format_price(raw_price: str) -> float:
 
 
 if __name__ == '__main__':
-    print(parse())
+    json.dump(parse(), sys.stdout, ensure_ascii=False)
