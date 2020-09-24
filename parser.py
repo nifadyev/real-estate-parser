@@ -6,7 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 
 
-URL_ROOT = 'https://akvilon-mitino.ru/flat/'
+URL_ROOT = 'https://akvilon-mitino.ru'
+# URL_ROOT = 'https://akvilon-mitino.ru/flat/'
 URL_FLAT_PLANS = 'https://akvilon-mitino.ru/flat/?group=yes'
 
 OUTPUT = {
@@ -27,7 +28,7 @@ OUTPUT = {
     'floor': '0',
     'in_sale': '0',
     'sale_status': '0',
-    'finished': '0',
+    'finished': 'optional',
     'currency': '0',
     'ceil': '0',
     'article': '0',
@@ -43,6 +44,16 @@ OUTPUT = {
     'discount': '0',
     'comment': '0',
 }
+
+FLAT_TYPES = {
+    'Тип: XS': 'studio',
+    'Тип: 1к': 1,
+    'Тип: 2к': 2,
+    'Тип: S': 2,
+    'Тип: M': 3,
+    'Тип: L': 4,
+}
+
 
 
 def get_page():
@@ -108,14 +119,43 @@ def parse_flat(flat=None):
     OUTPUT['building'] = flat_info[2].string
     OUTPUT['floor'] = int(flat_info[3].string)
 
+    img_path = soup.find(class_='flat__img-file').attrs['src']
+    OUTPUT['plan'] = f'{URL_ROOT}{img_path}'
+
+    flat_type = soup.find(class_='flat__type-plan').string
+    OUTPUT['rooms'] = FLAT_TYPES.get(flat_type)
+
+    OUTPUT['euro_planning'] = int('евро' in flat_name)
+
+    OUTPUT['in_sale'] = int(
+        soup.find(class_='button button--green flat__els-btn').string == 'Забронировать'
+    )
+
 
 def format_price(raw_price):
     formatted_price = raw_price.replace(' ', '').replace('₽', '')
 
     return float(formatted_price)
 
+# # TODO: add dict with error messages
+# def find_tag_by_class(soup, tag_class):
+#     tag = soup.find(class_=tag_class)
+
+#     if tag is None:
+#         raise ValueError(f'{ERRORS.get[tag_class]} is missing.')
+
+#     return tag
+
+
+def find_tags():
+    pass
+
+
+def validate():
+    pass
 
 
 if __name__ == '__main__':
     parse_flat()
-    print(OUTPUT)
+    import pprint
+    pprint.pprint(OUTPUT)
