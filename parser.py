@@ -1,14 +1,13 @@
 """Parser for akvilon-mitino.ru."""
 
 import re
-from typing import List
+from typing import List, Dict, Any
 import requests
 from bs4 import BeautifulSoup
+from bs4.element import ResultSet, Tag
 
 
 URL_ROOT = 'https://akvilon-mitino.ru'
-# URL_ROOT = 'https://akvilon-mitino.ru/flat/'
-URL_FLAT_PLANS = 'https://akvilon-mitino.ru/flat/?group=yes'
 
 
 FLAT_TYPES = {
@@ -32,28 +31,15 @@ ERROR_MESSAGES = {
 }
 
 
+def parse() -> List[Dict[str, Any]]:
+    """Parse available properties on partner's site.
 
-def get_page():
-    request = requests.get('https://akvilon-mitino.ru/flat/?group=yes')
-    # request = requests.get('https://akvilon-mitino.ru/flat/16432/')
-    print(request.status_code)
+    Returns:
+        list: sequence of JSON representations of all partner properties.
+    """
+    flat_ids = get_flat_ids()
 
-    with open('all_grouped_flats.html', mode='wb') as writable_file:
-        writable_file.write(request.content)
-
-
-def find_script_tags(url: str) -> List:
-    """Find and return all script tags from specified page."""
-    with open('all_grouped_flats.html', mode='r') as readable_file:
-        html = readable_file.read()
-
-    # request = requests.get(url)
-    # html = request.content
-    # print(request.status_code)
-
-    soup = BeautifulSoup(html, 'html.parser')
-
-    return soup.find_all('script')
+    return [parse_flat(flat_id) for flat_id in flat_ids]
 
 
 def get_flat_ids() -> List[str]:
@@ -61,8 +47,11 @@ def get_flat_ids() -> List[str]:
 
     Tags with planList in their content have information about flat ids for specific flat plan.
     This way of retrieving information helps to avoid extra requests.
+
+    Returns:
+        list: sequence of unique flat identifiers of partner's site.
     """
-    script_tags = find_script_tags(URL_FLAT_PLANS)
+    script_tags = find_script_tags(url='https://akvilon-mitino.ru/flat/?group=yes')
 
     flat_plans = (
         script.string for script in script_tags
@@ -70,18 +59,57 @@ def get_flat_ids() -> List[str]:
     )
     flat_ids = []
     for script in flat_plans:
-        plan_flat_ids = re.findall('(\d{5})', script)
-        # First value is plan_id
+        plan_flat_ids = re.findall(r'(\d{5})', script)
+        # First value is plan_id, not flat_id
         flat_ids.extend(plan_flat_ids[1:])
 
     return flat_ids
 
 
-def parse_flat(flat=None):
-    with open('flat_example.html', mode='r') as readable_file:
-        html = readable_file.read()
+def find_script_tags(url: str) -> ResultSet:
+    """Find all script tags in HTML response.
 
-    soup = BeautifulSoup(html, 'html.parser')
+    Args:
+        url: path to page with flat plans.
+
+    Raises:
+        ValueError: request is not succeed.
+        ValueError: script tags are not found in HTML response.
+
+    Returns:
+        ResultSet: sequence of script tags with attributes and content.
+    """
+    request = requests.get(url)
+    if request.status_code != 200:
+        raise ValueError('Request to get flat plans failed.')
+
+    soup = BeautifulSoup(markup=request.content, features='html.parser')
+
+    tags = soup.find_all('script')
+    if not tags:
+        raise ValueError('Invalid data format. Script tags are not found.')
+
+    return tags
+
+
+def parse_flat(flat_id) -> Dict[str, Any]:
+    """Make request to partner's site and parse response.
+
+    Args:
+        flat_id: unique flat identifier.
+
+    Raises:
+        ValueError: request is not succeed.
+
+    Returns:
+        dict: JSON flat representation.
+
+    """
+    request = requests.get(f'{URL_ROOT}/flat/{flat_id}/')
+    if request.status_code != 200:
+        raise ValueError(f'Request with flat_id {flat_id} failed.')
+
+    soup = BeautifulSoup(markup=request.content, features='html.parser')
     flat_name = find_tag_by_class(soup, 'flat__type-flat').string
     img_path = find_tag_by_class(soup, 'flat__img-file').attrs['src']
     flat_type = find_tag_by_class(soup, 'flat__type-plan').string
@@ -107,11 +135,11 @@ def parse_flat(flat=None):
         'floor': int(flat_info[3].string),
         'in_sale': int(is_bookable),
         'sale_status': None,
-        'finished': 'optional',
+        'finished': 1,
         'currency': None,
         'ceil': None,
         'article': None,
-        'finishing_name': 'Предчистовая',  # ask
+        'finishing_name': 'Предчистовая',
         'furniture': None,
         'furniture_price': None,
         'plan': f'{URL_ROOT}{img_path}',
@@ -124,35 +152,54 @@ def parse_flat(flat=None):
     }
 
 
-def format_price(raw_price):
+def find_tag_by_class(soup: BeautifulSoup, tag_class: str) -> Tag:
+    """Find and return tag in HTML response or raise an error.
+
+    Args:
+        soup: BeautifulSoup instance.
+        tag_class: class of searched HTML element.
+
+    Raises:
+        ValueError: tag is not found in HTML response.
+
+    Returns:
+        Tag: Tag instance.
+    """
+    tag = soup.find(class_=tag_class)
+
+    if tag is None:
+        raise ValueError(f'Invalid data format. {ERROR_MESSAGES.get(tag_class)} is not found.')
+
+    return tag
+
+
+def find_tags_by_class(soup: BeautifulSoup, tag_class: str) -> ResultSet:
+    """Find and return tags sequence in HTML response or raise an error.
+
+    Args:
+        soup: BeautifulSoup instance.
+        tag_class: class of searched HTML element.
+
+    Raises:
+        ValueError: tags are not found in HTML response.
+
+    Returns:
+        ResultSet: sequence of tags with attributes and content.
+    """
+    tags = soup.find_all(class_=tag_class)
+
+    if not tags:
+        raise ValueError(f'Invalid data format. {ERROR_MESSAGES.get(tag_class)} is not found.')
+
+    return tags
+
+
+def format_price(raw_price: str) -> float:
+    """Remove extra chars and convert price to float."""
     formatted_price = raw_price.replace(' ', '').replace('₽', '')
 
     return float(formatted_price)
 
 
-def find_tag_by_class(soup, tag_class):
-    tag = soup.find(class_=tag_class)
-
-    if tag is None:
-        raise ValueError(f'Invalid data format. {ERROR_MESSAGES.get(tag_class)} is missing.')
-
-    return tag
-
-
-def find_tags_by_class(soup, tag_class):
-    tags = soup.find_all(class_=tag_class)
-
-    if not tags:
-        raise ValueError(f'Invalid data format. {ERROR_MESSAGES.get(tag_class)} is missing.')
-
-    return tags
-
-
-def validate():
-    pass
-
-
 if __name__ == '__main__':
-    parse_flat()
-    import pprint
-    pprint.pprint(parse_flat())
+    result = parse()
