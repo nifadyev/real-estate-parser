@@ -113,7 +113,6 @@ def parse_flat(flat_id) -> Dict[str, Any]:
     flat_name = find_tag_by_class(soup, 'flat__type-flat').string
     img_path = find_tag_by_class(soup, 'flat__img-file').attrs['src']
     flat_type = find_tag_by_class(soup, 'flat__type-plan').string
-    is_bookable = find_tag_by_class(soup, 'button button--green flat__els-btn').string == 'Забронировать'
     # Values are Area, Number, Building and Floor respectively
     flat_info = find_tags_by_class(soup, 'flat__info-item-value')
 
@@ -133,7 +132,7 @@ def parse_flat(flat_id) -> Dict[str, Any]:
         'number_on_site': None,
         'rooms': FLAT_TYPES.get(flat_type),
         'floor': int(flat_info[3].string),
-        'in_sale': int(is_bookable),
+        'in_sale': 1,
         'sale_status': None,
         'finished': 1,
         'currency': None,
@@ -202,4 +201,4 @@ def format_price(raw_price: str) -> float:
 
 
 if __name__ == '__main__':
-    result = parse()
+    print(parse())
